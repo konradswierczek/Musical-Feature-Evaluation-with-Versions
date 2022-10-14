@@ -1,0 +1,673 @@
+---
+title: "Calculating Musical Mode in MIRtoolbox"
+subtitle: "Psych 713: Supervised by Michael Schutz"
+author: Konrad Swierczek SN001423065
+date: "`r format(Sys.time(), '%d/%m/%y')`"
+title-block-style: none
+format: 
+        pdf:
+                mainfont: Times New Roman
+header-includes:
+    - \usepackage{fancyhdr}
+    - \pagestyle{fancy}
+    - \fancyhf{}
+    - \fancyhead[L]{Calculating Musical Mode in MIRtoolbox}
+    - \fancyhead[R]{\thepage}
+    - \setlength{\parindent}{1cm}
+tbl-cap-location: bottom
+fontsize: "12pt"
+indent: "2m"
+output-file: "kswierczek_maplemodule_writeup" 
+bibliography: references.bib
+csl: https://www.zotero.org/styles/apa-single-spaced
+---
+{{< pagebreak >}}
+# Proposal 04/05/22
+* Start Date May 9 - End Date June 20
+* 6-10 Hours/Week [*$\color{blue}{\text{(see PNB Graduate Handbook guidelines)}}$*](https://wikis.mcmaster.ca/mediawiki/pnbgraduatehandbook/index.php?title=Course_Requirements/)
+
+Modality, a structural feature of music, is an important cue which conveys the emotional character of a piece of music. In western music, the major and minor modes of the diatonic set are most commonly associated with positive and negative emotional valence respectively. Despite many music-theoretical and  psychological frameworks for predicting the mode of a piece of music as represented in an  audio file, definitions and operationalizations of mode vary. The proposed module will focus on using audio analysis tools (MIRtoolbox) to investigate mode. MIRtoolbox contains a “mirmode” function which returns a value between -1 (high confidence minor mode prediction) and 1 (high confidence major mode prediction). While MIRtoolbox has been used widely by researchers (cited over 1200 times), the effectiveness and accuracy of automated audio feature extraction tools like MIRtoolbox including its “Harmonic Pitch Class Profile” extraction module and mode extraction module based on the Krumhansl/Gomez key-finding algorithm should be explored further.  Using a collection of piano preludes recorded by multiple artists, as well as comparisons to other lower-level audio features, the accuracy and consistency of the “Harmonic Pitch Class Profile” and “mirmode” modules can be tested. 
+
+### Learning Objectives: 
+* Extracting musical/sound features from audio files 
+* Understanding of principles/mechanisms behind these musical/sound features
+* Develop skills in MATLAB, primarily with MIRtoolbox 
+
+### Research Objectives: 
+* Evaluate effectiveness of automated mode detection for audio files
+* Evaluate consistency of automated mode detection for different recordings of the same piece of music
+* Compare effectiveness of automated mode detection for audio files with automated mode detection for symbolic notation
+* Investigate possible structural and psychological underpinnings of mode as discussed in literature cited in MIRtoolbox and other sources
+
+### Deliverable Goals:
+* Visualizations of mode score variability between interpretations for each piece
+* Visualizations of results (i.e., Harpsichord vs. Piano, Audio vs. Symbolic Notation)
+* Write-up of methods
+
+[*$\color{blue}{\text{Link to Evaluation Form}}$*](https://macdrive.mcmaster.ca/f/cb5cbd8d7cd247b3b012)
+{{< pagebreak >}}
+```{r bkgrd-commercialaudioAnalysis, echo = FALSE, message = FALSE, warning = FALSE, results = "hide"}
+#curl::curl_download("https://mcmasteru365-my.sharepoint.com/:u:/g/personal/swierckj_mcmaster_ca/EcKH5DYXUBJFllOak8qPDbgBwivwP91yYPgLnCmezEfvqA?download=1", paste(getwd(),"/stimuli.zip", sep =""))
+#matlabr::run_matlab_script("mirmode_mirtoolbox.m")
+```
+```{python bkgrd-symbolicAnalysis, echo = FALSE, message = FALSE, warning = FALSE, results = "hide"}
+# Imports
+from mirmode_midi import *
+import shutil
+
+# Open stimuli set
+shutil.unpack_archive("stimuli.zip")
+
+# Export datasets
+header = ['filename','artist','chroma', 'mode', 'instrument',
+          'mode_val', 'mode_valsum',
+          'pcd0', 'pcd1', 'pcd2', 'pcd3', 'pcd4', 'pcd5', 
+          'pcd6', 'pcd7', 'pcd8', 'pcd9', 'pcd10', 'pcd11',
+          'krum0maj', 'krum1maj', 'krum2maj', 'krum3maj', 'krum4maj', 'krum5maj', 
+          'krum6maj', 'krum7maj', 'krum8maj', 'krum9maj', 'krum10maj','krum11maj',
+          'krum0min', 'krum1min', 'krum2min', 'krum3min', 'krum4min', 'krum5min', 
+          'krum6min', 'krum7min', 'krum8min', 'krum9min', 'krum10min','krum11min',
+         ]
+# Kern
+corpus_analyzed_kern = corpus_analyze('stimuli/wtc1_kern')
+
+if os.path.isfile('data/kern_data.csv'):
+  os.remove('data/kern_data.csv')
+
+with open ('data/kern_data.csv','w', newline = '') as outfile:
+    writer = csv.writer(outfile)
+    writer.writerow(header) 
+    for filename, file in corpus_analyzed_kern.items():
+        if int(filename[6]) %2 == 0:
+            mode = 'minor'
+        else:
+            mode = 'major'
+        if filename[9] == '.':
+            chroma = filename[8]
+        else:
+            chroma = filename[8] + filename[9]
+        data = [filename, 'kern', chroma, mode, 'S', file.mirmode_val, 
+                file.mirmode_valsum, 
+                file.pcd[0], file.pcd[1], file.pcd[2], file.pcd[3], file.pcd[4], 
+                file.pcd[5], file.pcd[6], file.pcd[7], file.pcd[8], file.pcd[9], 
+                file.pcd[10], file.pcd[11], 
+                file.krum['0 major'], file.krum['1 major'], file.krum['2 major'], 
+                file.krum['3 major'], file.krum['4 major'], file.krum['5 major'], 
+                file.krum['6 major'], file.krum['7 major'], file.krum['8 major'], 
+                file.krum['9 major'], file.krum['10 major'], file.krum['11 major'],
+                file.krum['0 minor'], file.krum['1 minor'], file.krum['2 minor'], 
+                file.krum['3 minor'], file.krum['4 minor'], file.krum['5 minor'], 
+                file.krum['6 minor'], file.krum['7 minor'], file.krum['8 minor'], 
+                file.krum['9 minor'], file.krum['10 minor'], file.krum['11 minor'],
+               ]
+        writer.writerow(data)
+
+# MIDI
+corpus_analyzed_midi = corpus_analyze('stimuli/wtc1_midi')
+
+if os.path.isfile('data/MIDI_data.csv'):
+  os.remove('data/MIDI_data.csv')
+
+with open ('data/MIDI_data.csv','w', newline = '') as outfile:
+    writer = csv.writer(outfile)
+    writer.writerow(header) 
+    for filename, file in corpus_analyzed_midi.items():
+        if 'Major' in filename:
+            mode = 'Major'
+        elif 'Minor' in filename:
+            mode = 'Minor'
+        else:
+            mode = None
+        if filename[17] == '_':
+            chroma = filename[16]
+        else:
+            chroma = filename[16] + filename[17]
+        data = [filename, 'midi', chroma, mode, 'M', file.mirmode_val, 
+                file.mirmode_valsum, 
+                file.pcd[0], file.pcd[1], file.pcd[2], file.pcd[3], file.pcd[4], 
+                file.pcd[5], file.pcd[6], file.pcd[7], file.pcd[8], file.pcd[9], 
+                file.pcd[10], file.pcd[11], 
+                file.krum['0 major'], file.krum['1 major'], file.krum['2 major'], 
+                file.krum['3 major'], file.krum['4 major'], file.krum['5 major'], 
+                file.krum['6 major'], file.krum['7 major'], file.krum['8 major'], 
+                file.krum['9 major'], file.krum['10 major'], file.krum['11 major'],
+                file.krum['0 minor'], file.krum['1 minor'], file.krum['2 minor'], 
+                file.krum['3 minor'], file.krum['4 minor'], file.krum['5 minor'], 
+                file.krum['6 minor'], file.krum['7 minor'], file.krum['8 minor'], 
+                file.krum['9 minor'], file.krum['10 minor'], file.krum['11 minor'],
+               ]
+        writer.writerow(data)
+
+###############################################################################
+
+# Pearson R for MIDI vs Kern
+from scipy.stats import pearsonr
+midikern_correl = [pearsonr(list(corpus_analyzed_midi[midifile].pcd.values()), 
+                            list(corpus_analyzed_kern[kernfile].pcd.values())) 
+                   for midifile, kernfile in zip(corpus_analyzed_midi.keys(),
+                                                 corpus_analyzed_kern.keys())] 
+shutil.rmtree("stimuli", ignore_errors=True)                                          
+```
+```{r bkgrd-analysisCleanup, echo = FALSE, message = FALSE, warning = FALSE, results = "hide"}
+#unlink("stimuli.zip") 
+```
+```{r bkgrd-setup, echo = FALSE, message = FALSE, warning = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+library(ggplot2)
+library(data.table)
+library(ggpubr)
+dir.create("plots")
+dir.create("plots/pcd")
+dir.create("plots/chromagrams")
+dir.create("plots/prelude_dotplots")
+###############################################################################
+# Metadata
+metadata <- data.frame(read.csv("data/metadata.csv",
+                                          header = TRUE))
+metadata_table <- data.frame(metadata$Artist,
+                             metadata$Year.Recorded,
+                             metadata$Year.Released,
+                             metadata$Instrument)
+metadata_table <- metadata_table[-c(1),]
+metadata_table <- metadata_table[order(as.numeric(metadata_table$metadata.Year.Recorded)),]
+setnames(metadata_table, names(metadata_table), c("Artist", 
+                                                  "Year Recorded",
+                                                  "Year Released",
+                                                  "Instrument"))
+###############################################################################
+# MIRtoolbox Data
+mir_datafull <- data.frame(read.csv("data/MIRtoolbox_mirmode.csv", header = TRUE))
+mir_data <- data.frame(mir_datafull$filename)
+names(mir_data)[names(mir_data) == 'mir_datafull.filename'] <- 'filename'
+mir_data$artist  <- mir_datafull$artist
+mir_data$performance  <- mir_datafull$performance
+mir_data$chroma  <- mir_datafull$chroma
+mir_data$mode  <- mir_datafull$mode
+mir_data$mode_val  <- mir_datafull$mode_val
+mir_data$mode_valsum  <- mir_datafull$mode_valsum
+mir_data$key <- paste(mir_data$chroma, mir_data$mode)
+mir_data$instrument <- substr(mir_data$performance, 1, 1)
+mir_data$instrument[mir_data$instrument == "H"] <- "Harpsichord" 
+mir_data$instrument[mir_data$instrument == "P"] <- "Piano" 
+mir_data$instrument[mir_data$instrument == "S"] <- "Synthesized" 
+metadata$Album <- paste(metadata$Surname, metadata$Performance)
+for (ind in seq_len(nrow(mir_data))) {
+  mir_data$year[ind] <- subset(metadata, Album == paste(mir_data$artist[ind], mir_data$performance[ind]))$Year.Recorded
+}
+mir_data$album <- paste(mir_data$artist, mir_data$year)
+for (ind in seq_len(nrow(mir_data))) {
+  mir_data$artist_fullname[ind] <- subset(metadata, Surname == mir_data$artist[ind])$Artist[1]
+}
+###############################################################################
+# Commercial Audio Data
+audio_data <- mir_data[!(mir_data$instrument == "Synthesized"),]
+###############################################################################
+# Synth Data
+synth_data <- subset(mir_data, instrument == "Synthesized")
+###############################################################################
+# MIDI Data
+midi_datafull <- data.frame(read.csv("data/MIDI_data.csv", header = TRUE))
+midi_data <- data.frame(midi_datafull$filename)
+names(midi_data)[names(midi_data) == 'midi_datafull.filename'] <- 'filename'
+midi_data$artist <- midi_datafull$artist            
+midi_data$chroma <- midi_datafull$chroma
+midi_data$mode <- midi_datafull$mode
+midi_data$mode_val <- midi_datafull$mode_val 
+midi_data$mode_valsum <- midi_datafull$mode_valsum
+midi_data$key <- paste(midi_data$chroma, midi_data$mode)
+midi_data$album <- "MIDI"
+midi_data$performance <- "M1"
+midi_data$year <- "N/A"
+midi_data$instrument <- "MIDI"
+midi_data$artist_fullname <- "MIDI"
+###############################################################################
+# All Data
+all_data <- rbind(mir_data, midi_data)
+###############################################################################
+# Onset Data
+onset_data <- data.frame(read.csv("data/MIRtoolbox_onsets.csv", header = TRUE))
+onset_data$key <- paste(onset_data$chroma, onset_data$mode)
+onset_data$album <- paste(onset_data$performer, "_", onset_data$performance,
+                          sep = "")
+###############################################################################
+# Tables
+table_data <- data.frame(audio_data$album, audio_data$mode, audio_data$chroma,
+                         audio_data$key, audio_data$instrument, audio_data$year, audio_data$mode_val)
+table_data$audio_data.mode_val[table_data$audio_data.mode_val > 0] <- "Major"
+table_data$audio_data.mode_val[table_data$audio_data.mode_val < 0] <- "Minor"
+setnames(table_data, names(table_data), c("Album", "Mode", "Chroma", "Key",              
+                                          "Instrument", "Year", "Calculated Mode"))
+###############################################################################
+# Kern data not included due to inconsistencies: 
+# Not a big dela since MIDI does more or less the same thing.
+# TODO: figure out why kern is inconcistent (likely due to music21).                                     
+```
+
+# Introduction
+In music, mode refers to the type and order of a scale, or set of pitches, in a piece of music. In contemporary western music, the major and minor modes of the diatonic set are used most typically. Each mode has its own set of compositional norms and affective and associative cues. Mode unfolds over time, can change during a piece of music, is specific to the larger context of a piece, but is also a cultural and learned phenomenon. Composers of western classical music have traditionally labelled compositions with a nominal mode, that is the mode determined by the composer or editor/publisher. By contrast, since mode is a culturally informed phenomenon, the perceived mode of a piece of music might differ from the nominal and may differ between individuals. Despite a great deal of discourse on mode among musicians, musicologists, philosophers, and scientists, a operational definition and method for identifying either the perceived or nominal mode has not received widespread agreement.
+\
+\
+Computational models of mode, and computational models of tonality more broadly have received considerable attention since the 1970's. A consistently computed measure of mode can be useful for the creation of stimuli in music cognition experiments, while observed links between the mode of a piece of music and its emotional appraisal have spurred interest in the use of computed mode in content-based music recommendation systems. Recent advances in the psychological study of structural music features such as mode, as well as the availability of sophisticated statistical and computation techniques has resulted in the creation and utilization of numerous tools for extracting features (whether they be acoustic, surface, or structural) from digital representations of music. In particular, interest in extracting acoustic, surface, and structural sound/musical features from digital audio files has grown in recent years due to the ecological validity of analyzing the same signal that listeners experience. However, due to limitations in audio analysis methods, many tools still favor symbolic representations of music such as scores, MIDI (Musical Instruments Digital Interface), expert annotations, and others due to their simplicity and absence of noise. Audio analysis remains more appealing despite the limitations since symbolic notation is often less representative and does not provide crucial cues such as timbre or fine-grained dynamics.
+\
+\
+Despite the widespread use of these algorithms in music research, little focus has been devoted to determining if these algorithms are consistent with our music theoretical, psychological, or phenomenological understanding of experiences such as mode.
+\
+\
+An immerging trend in MIR (music information retrieval) uses extracted features to perform music version identification, predominantly to identify "covers", or alternate versions of an original piece of music. While in contemporary music a version of a piece of music may vary across many musical dimensions (rhythm, tempo, harmony, etc.) while maintaining others (melody, text, form, etc.), other styles of music are less variable across versions. The western classical music tradition has produced a large body of versions with limited variability in the structural features: in the case of classical solo piano, timbre, tempo, and dynamics might vary significantly, but the pitch and rhythm are maintained more consistently and correspond closely to the score (symbolic notation). Since the pitch content of a piece of music defines its mode, different versions of the same piece without large variation in pitch content should not have differing computed structural pitch features such as mode. Here we use multiple versions of the same set of classical piano pieces to evaluate the consistency of a computational model of mode as well as its underlying components. 
+
+## MIRtoolbox mirmode
+MIRtoolbox is a collection of MATLAB tools developed for extracting a range of musical features from audio files (@lartillot_matlab_2007, @lartillot_mirtoolbox_2021). Mirmode is a module of MIRtoolbox intended to extract a quantification of the perceived musical mode in a given audio file. MIRtoolbox accepts digital audio waveforms in a variety of common file formats (.wav, .mp3, etc.). Prior to analysis, the algorithm is capable of segmenting the waveform into time windows for a unfolding analysis, and is also capable of focusing on specific spectral bands of the audio spectrum. Neither of these features are used in this analysis, however an unfolding analysis of mode may be helpful for analyzing larger pieces of music which include modulation, the changing of mode or key, while frequency-dependant analyses might control for some of the compression artifacts associated with commercial audio recordings or unwanted spectral bands (for instance, high frequency regions associated with non-pitched sounds such a cymbals). Following this, a Discrete Fourier Transform is performed on the waveform, which is then processed into a chromagram, or Harmonic Pitch Class Profile which represents the octave-generalized energy of each pitch class in the Twelve Tone Equal Temperament scale tuned to 440Hz (alternative tuning systems can be accommodated). Next, a modified version of the Krumhansl-Schmuckler keyfinding algorithm is performed on the chromagram, returning key-coefficients for all 24 major and minor keys (@gomez_tonal_2006). By default, the highest minor-key correlation is subtracted from the highest major-key correlation to return a value which can only lie between -1 and 1. Alternatively, mirmode can be computed by subtracting the sum of all minor-key correlations with all major-key correlations (discussed below). @fig-schematic is a visual schematic of the mirmode algorithm.
+
+![MIRtoolbox Schematic of mirmode from MIRtoolbox Manual 1.8.1](plots/mirmode_flowchart.png){#fig-schematic}
+
+# Methods
+In order to test the effectiveness of the mirmode algorithm, the first eight measures of `r length(unique(audio_data$album))` commercial audio recordings (versions) of all 24 preludes (pieces) from J.S. Bach’s Well Tempered Clavier Book 1 by notable performers were analyzed with mirmode. These performances were recorded from `r min(metadata_table$"Year Recorded")` to `r max(metadata_table$"Year Recorded")` and include both harpsichord and piano interpretations (see @tbl-metadata) for metadata). A subset of these are included in Palmer's analysis of The Well Tempered Clavier (@bach_well-tempered_2004). In addition, MIDI representations of the preludes were processed through a Python program utilizing the music21 module @cuthbert_music21_2010 replicating MIRtoolbox's mirmode using a pitch class distribution in place of the chromagram. An additional audio version based upon the MIDI representations synthesized with a piano timbre was analyzed. All the audio recordings were .wav files with a sampling rate of 44.1kHz and bit-depth of 16 bits. Both the default method for mirmode as well as the sum option were analyzed. As an additional point of comparison, the MIRtoolbox mirevents algorithm was computed for each audio file as well as the number of events in the MIDI files, including events per second for both audio and MIDI.
+```{r}
+#| label: tbl-metadata
+#| tbl-cap: "Metadata of 13 commercial audio recordings included in analysis."
+knitr::kable(metadata_table,
+             padding = 0,
+             row.names=FALSE)
+```
+
+# Results
+## mirmode Overall Accuracy
+To evaluate if the algorithm accurately determines the nominal mode, all calculated mirmode values above 0 were evaluated as computed major, while all values below zero were evaluated as computed minor. @tbl-nomVcalc shows the computed mode consistency for both major and minor nominal modes. While over 75% of nominally major piece versions were identified consistently with the nominal mode by the algorithm, less than half of the nominally minor piece versions were identified consistently. While previous research on the Krumhansl-schmuckler key finding algorithm performed on symbolic notation has shown a high degree of accuracy in identifying the nominal key @krumhansl_cognitive_2001, it appears that the algorithm is less robust when performed on chromagrams from audio files.
+\
+```{r}
+#| label: tbl-nomVcalc
+#| tbl-cap: "Calculated mode of MIDI and Synthesize Audio preludes compared to the nominal mode."
+# Overall
+# Total Correct Major
+majt <- round((sum(subset(table_data, 
+                          Mode == "Major")$"Calculated Mode" == "Major",
+                  na.rm = TRUE) /
+                  length(subset(table_data,
+                                Mode == "Major")$"Calculated Mode"))
+                  * 100, 3)
+# Total Incorrect Major
+majf <- round((sum(subset(table_data,
+                          Mode == "Major")$"Calculated Mode" == "Minor",
+                  na.rm = TRUE) /
+                  length(subset(table_data, 
+                                Mode == "Major")$"Calculated Mode"))
+                  * 100, 3)
+# Total Correct Minor
+mint <- round((sum(subset(table_data,
+                          Mode == "Minor")$"Calculated Mode" == "Minor",
+                  na.rm = TRUE) /
+                  length(subset(table_data, 
+                                Mode == "Minor")$"Calculated Mode"))
+                  * 100, 3)
+# Total Incorrect Minor
+minf <- round((sum(subset(table_data, 
+                          Mode == "Minor")$"Calculated Mode" == "Major",
+                  na.rm = TRUE) /
+                  length(subset(table_data, 
+                                Mode == "Minor")$"Calculated Mode"))
+                  * 100, 3)
+test2 <- data.frame(c(majt, majf), c(mint, minf))
+row.names(test2) <- c("Computed Major", "Computed Minor")
+setnames(test2, names(test2), c("Nominal Major", "Nominal Minor"))
+###############################################################################
+knitr::kable(test2,
+             padding = 0)
+```
+However, the nominal mode of a piece of music is only a reflection of the composers (or in some cases, the editor/publishers) intentions and does not necessarily reflect the perceived mode: particularly in the case of music that was composed in a different cultural context than that in which the mode algorithm was developed and informed by human behaviour. However, while the nominal mode for a given piece of music might be inconsistent with the perceived or computed mode (as appears to be the case for a few pieces in this corpus, for instance 5 Major in @fig-piece), the algorithm should perform relatively consistently across multiple versions of the same piece.  @fig-piece further divides the analysis into individual pieces, where no single piece had all its versions identified consistently, while one third of the pieces had less than half of their versions identified consistently. There does not appear to be a pattern based on instrument or year of recording. These results suggest that the computed mode, which should generally not vary in different versions of the same composition, as well as the chromagram that underlies the algorithm, seem to be susceptible to factors that do vary between versions: for instance, variability between individual performers, recording equipment, instruments, and room acoustics.
+\
+```{r fig-piece, fig.cap = "Computed mode (Percentage of audio recordings within a prelude) consistent with the nominal mode."}
+piece_correct <- data.frame()
+for (key in unique(subset(table_data, Mode == "Major")$Key)) {
+        piece_correct[nrow(piece_correct) + 1, 1:3] <- 
+        c(substr(key, 1, 2),
+        "Nominal Major",
+        round(sum(subset(table_data, Key == key)$"Calculated Mode" == "Major") /
+        length(unique(table_data$Album)) * 100, 3))
+}
+for (key in unique(subset(table_data, Mode == "Minor")$Key)) {
+        piece_correct[nrow(piece_correct) + 1, 1:3] <- 
+        c(substr(key, 1, 2),
+        "Nominal Minor",
+        round(sum(subset(table_data, Key == key)$"Calculated Mode" == "Minor") /
+        length(unique(table_data$Album)) * 100, 3))
+}
+setnames(piece_correct, names(piece_correct), c("prelude_chroma",
+                                                "nom_mode",
+                                                "val"))
+###############################################################################
+ggplot(piece_correct, aes(y = as.factor(as.numeric(prelude_chroma)))) + 
+        geom_bar(aes(weight = as.numeric(val), fill = nom_mode),
+                     position = position_stack(reverse = TRUE),
+                     show.legend = FALSE) +
+        facet_grid(~nom_mode) +
+        scale_y_discrete(limits=rev) +
+        labs(x = "Nominal Mode Matches Computed Mode (Percent)", 
+             y = "Key Chroma") +
+        theme(panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank()) +
+        geom_vline(xintercept = 50, color = "gray")
+```
+```{r bkgrd-album}
+album_correct <- data.frame()
+for (album in unique(subset(table_data, Mode == "Major")$Album)) {
+        album_correct[nrow(album_correct) + 1, 1:5] <- 
+        c(album,
+        "Nominal Major",
+        unique(subset(table_data, Album == album)$Instrument),
+        unique(subset(table_data, Album == album)$Year),
+        round(sum(subset(subset(table_data, Album == album),
+                Mode == "Major")$"Calculated Mode" == "Major") /
+        12 * 100, 3))
+}
+for (album in unique(subset(table_data, Mode == "Minor")$Album)) {
+        album_correct[nrow(album_correct) + 1, 1:5] <- 
+        c(album,
+        "Nominal Minor",
+        unique(subset(table_data, Album == album)$Instrument),
+        unique(subset(table_data, Album == album)$Year),
+        round(sum(subset(subset(table_data, Album == album),
+                Mode == "Minor")$"Calculated Mode" == "Minor") /
+        12 * 100, 3))
+}
+setnames(album_correct, names(album_correct), c("album",
+                                                "nom_mode",
+                                                "ins",
+                                                "year",
+                                                "val"))
+album_correct <- album_correct[order(album_correct$year),]
+```
+In addition to considering the differences across pieces, it is possible that an individual version may simply be less conducive to MIR-style analyses than others. In particular, older recordings tend to have larger noise floors, poorer dynamic range, and un-even spectral balance in comparison to newer recordings. @fig-album shows the percentage of pieces within a version that match the nominal mode. On average, only `r {round(mean(as.numeric(album_correct$val)),0)}`% of pieces within a version are consistent with the nominal mode. While some albums appear to have more mismatches than others, the majority have more than 40% matching. In addition, the older recordings do not appear to have a greater degree of mismatch.
+```{r fig-album, fig.cap = "Computed mode (Percentage of audio recordings within a version) consistent with the audio mode. Colours indicate the instrument of the version."}
+ggplot(album_correct, aes(y = reorder(album, as.numeric(year)), fill = ins)) +
+        geom_bar(aes(weight = as.numeric(val))) +
+        facet_grid(~nom_mode) +
+        labs(x = "Nominal Mode Matches Computed Mode (Percent)", 
+             y = "Version",
+             fill = "") +
+        xlim(0, 100) +
+        theme(panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              legend.position = "bottom") +
+        scale_fill_manual("", values = c("#ed9d64", "#6495ed")) +
+        geom_vline(xintercept = 50, color = "gray")
+```
+
+## Symbolic Notation (MIDI) and Synthesized Recording
+A shortcoming of the mirmode algorithm is the accuracy of the chromagram used to compute the mode value. Since the chromagram is more prone to error than a pitch class distribution from symbolic notation due to the temporal precision of FFT, noise, spectral variation, etc., calculating the mirmode value based on symbolic notation should be more accurate than audio. Synthesized audio is similarly not subject to the same noise (i.e., dynamic compression, tonal equalization, digital compression, acoustic and electrical noise, timbre variation, etc) associated with commercial recordings and should also be more accurate than commercial recordings, while less accurate than MIDI due to still requiring the generation of a chromagram from a Fourier transform. @tbl-MIDIvSYNTH shows the amount of preludes with a calculated mode consistent with the nominal mode for both the MIDI representation and the synthesized audio. While the algorithm performs similarly for nominally major MIDI files, synthesized audio, and commercial audio, nominally minor MIDI files were more consistently computed as minor than synthesized audio recordings. However, in both cases, the range of values are limited to -0.3 - 0.3 calling into question the relative confidence of any given mode determination, regardless of the stimulus format. While the computed mode for MIDI representations appears to be quite consistent with the nominal mode, The introduction of a chromagram computation consistently leads to more major mode predictions by the mirmode algorithm. @fig-MIDIvSYNTH more specifically outlines the discrepancy between the MIDI files and synthesized audio. While in 16 pieces the difference between the two versions was negligible in terms of the predicted mode, eight pieces saw the mode prediction change, with variability present in many of the pieces that did not change mode according to the criteria used here.
+```{r bkgrd-MIDIvSYNTH}
+midi_table <- midi_data
+midi_table$mode_calculated <- ifelse(midi_table$mode_val > 0, "Major", "Minor")
+midi_calc <- data.frame(c(sum(subset(midi_table, mode == "Major")$mode_calculated == "Major", na.rm = TRUE),
+                        sum(subset(midi_table, mode == "Major")$mode_calculated == "Minor", na.rm = TRUE)),
+                        c(sum(subset(midi_table, mode == "Minor")$mode_calculated == "Major", na.rm = TRUE),
+                        sum(subset(midi_table, mode == "Minor")$mode_calculated == "Minor", na.rm = TRUE)))
+
+row.names(midi_calc) <- c("Computed Major", "Computed Minor")
+setnames(midi_calc, names(midi_calc), c("Nominal Major", "Nominal Minor"))
+
+synth_data$mode_calculated <- ifelse(synth_data$mode_val > 0, "Major", "Minor")
+synth_calc <- data.frame(c(sum(subset(synth_data, mode == "Major")$mode_calculated == "Major", na.rm = TRUE),
+                        sum(subset(synth_data, mode == "Major")$mode_calculated == "Minor", na.rm = TRUE)),
+                        c(sum(subset(synth_data, mode == "Minor")$mode_calculated == "Major", na.rm = TRUE),
+                        sum(subset(synth_data, mode == "Minor")$mode_calculated == "Minor", na.rm = TRUE)))
+```
+|             | MIDI               |                    | Synthesized Audio   |                     |
+|---------------|---------------|---------------|---------------|---------------|
+|             | Major~nom~         | Minor~nom~         | Major~nom~          | Minor~nom~          |
+| Major~calc~ | `r midi_calc[1,1]` | `r midi_calc[1,2]` | `r synth_calc[1,1]` | `r synth_calc[1,2]` |
+| Minor~calc~ | `r midi_calc[2,1]` | `r midi_calc[2,2]` | `r synth_calc[2,1]` | `r synth_calc[2,2]` |
+: Calculated mode (Percentage) of commercial audio versions compared to the nominal mode. {#tbl-MIDIvSYNTH}
+```{r fig-MIDIvSYNTH, fig.cap = "mirmode values for MIDI and Synthesized audio versions across key chroma and nominal mode. Lines indicate the variability between the two versions, where a red line indicates a synthesized audio file was predicted to be more major than the MIDI file, while a blue line indicates a synthesized audio file was predicted to be more minor."}
+midi_synth2 <- subset(all_data, instrument == "MIDI" | instrument == "Synthesized")
+for (ind in seq_len(nrow(midi_synth2))) {
+  midi_synth2$delta[ind] <- midi_synth2$mode_val[ind] - subset(midi_data, key == midi_synth2$key[ind])$mode_val
+}
+test6 <- c(ifelse(midi_synth2$delta > 0, "red", "blue"))
+###############################################################################
+ggplot(midi_synth2, aes(mode_val, as.factor(chroma))) + 
+geom_vline(xintercept = 0, color = "gray") +
+geom_point(aes(shape = factor(instrument))) +
+scale_shape_manual(values=c(1, 16)) +
+labs(x = "mirmode Value", y = "Key Chroma") +
+theme(legend.title = element_blank(),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      legend.position = "bottom") +
+geom_path(aes(color = delta)) +
+scale_colour_gradient(labels = c("Minor", "", "Major", ""), low = "cornflowerblue", high = "#FF0000") +
+facet_grid( ~ mode)
+```
+
+## Variability Across Versions
+While substantial variability can be seen when considering a binary decision of < 0 = Minor / > 0 = Major, the variability of raw values across versions is also an important metric for evaluating the algorithm. @fig-boxplot shows the distribution of mirmode values for commercial audio in comparison to the MIDI files (see @fig-all_samples for individual datapoints).
+```{r fig-boxplot, fig.cap = "Distributions of mirmode values for commercial audio and MIDI files based on nominal mode."}
+audio_databuf <- audio_data
+midi_databuf <- midi_data
+audio_databuf$type <- "Commercial Audio"
+midi_databuf$type <- "MIDI"
+midi_databuf <- midi_databuf[ , order(names(midi_databuf))]
+audio_databuf <- audio_databuf[ , order(names(audio_databuf))]
+boxplot_databuf <- rbind(midi_databuf, audio_databuf)
+###############################################################################
+ggplot(boxplot_databuf, aes(x = mode, y = mode_val, fill = type)) +
+        geom_boxplot(notch = TRUE) +
+        labs(x = "Nominal Mode", y = "mirmode Value") +
+        #geom_jitter() +
+        theme(legend.position = "bottom", panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+        labs(x = "Nominal Mode", y = "mirmode Value") + 
+        guides(fill=guide_legend(title=""))
+```
+{{< pagebreak >}}
+```{r fig-all_samples, fig.asp = 1.5, fig.cap = "Distribution of individual versions across each prelude. Colours indicate type of file."}
+bigplot <- all_data
+bigplot$type <- ifelse(bigplot$album == "MIDI", "MIDI", ifelse(bigplot$album == "De-Maria N/A", "Synthesized Audio", "Commercial Audio"))
+###############################################################################
+ggplot(bigplot, aes(x = mode_val, fill = type)) +
+        geom_vline(xintercept = 0, color = "dark gray") +
+        geom_dotplot() +
+        labs(x = "mirmode Value", y = "Number of Recordings") +
+        xlim(c(-0.4, 0.4)) +
+        theme(legend.position = "bottom") +
+        facet_grid(chroma~mode) +
+        theme(axis.text.y = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+        scale_y_continuous(sec.axis = sec_axis(~ . , name = "Key Chroma", breaks = NULL, labels = NULL))
+```
+{{< pagebreak >}}
+## mirmode Sum Method
+In addition to the default method for calculating the mirmode coefficient, MIRtoolbox offers the option to calculate the coefficient by subtracting the sum of all minor key coefficients from the sum of all major key coefficients. However, since the values no longer necessarily lie between -1 and 1, where to draw a line between major and minor predictions is unclear, making the application of this method limited. In the case of the MIDI representations, the values lie between -0.003 and 0.003 while the commercial audio values lie between 2.381 and 6.222 (@fig-boxplotSum). Additionally, discriminability between the nominally major and minor pieces is considerably less defined in comparison to the default method (@fig-boxplot). As a result, the default method appears to be more conducive to real world analysis. Since it is difficult to establish where the line might be drawn between major and minor, tables for computed-nominal matches have not been included.
+```{r fig-boxplotSum, fig.cap = "Distributions of mirmode values for commercial audio and MIDI files based on nominal mode."}
+ggarrange(ggplot(audio_data, aes(x = mode, y = mode_valsum, fill = mode)) +
+                geom_boxplot(notch = TRUE) +
+                labs(title = "Commercial Audio", x = "Nominal Mode", 
+                                      y = "mirmode Value (sum method)") +
+                geom_jitter(color = "black", size=0.4, alpha=0.9) +
+                theme(legend.position = "none", panel.grid.major = element_blank(), panel.grid.minor = element_blank()),
+          ggplot(midi_data, aes(x = mode, y = mode_valsum, fill = mode)) +
+                geom_boxplot(notch = TRUE) +
+                theme(legend.position = "none", panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+                geom_jitter(color = "black", size=0.4, alpha=0.9) +
+                labs(title = "MIDI", x = "Nominal Mode", y = ""))
+```
+
+# Discussion
+Below are some points for discussion on the mirmode algorithm. Most of these deal with technical problems that might be contributing to the pattern of results found here.
+\
+**Sampling rates:** The chromagram used in this method is calculated using FFT. The temporal precision of FFT is limited by the Nyquist limit (the limit of distinguishable frequencies) of a signal. In the case of commercial audio, our Nyquist limit is 20kHz, which is fine given the range of human hearing. However, the temporal precision of FFT at the Nyquist limit is defined by the sampling unit: 1 second. So at 20kHz, our temporal precision is 1s, at 10kHz our temporal precision is 500ms, etc, etc. I suspect that moving to higher sampling rates such as 96kHz or 192kHz (well within the range of our current technology) might result in a chromagram more accurate. 
+
+**Chromagram Noise:** Regardless of sampling rate, the chromagram will always be susceptible to some noise because instruments are seldom tuned exactly and consistently to 440Hz, and most microphones and preamplifiers (not to mention equalizers and compressors) produce some degree of non-linear distortion. This shouldn't be an issue for the synthesized audio, though. I think it would be worthwhile to explore beyond sample rates and see if this method works well even under ideal circumstances.
+
+**Krumhansl Schmuckler:** While Krumhansl (1990) found the key finding algorithm had a 91.7% match rate to the nominal key in all 48 preludes in the WTC, these results do not seem to replicate with audio. One way to look at these results is that the theory behind this is fine, but the chromagrams are inaccurate. With more time I would have liked to explore some measure of comparing the chromagrams to the pitch class distribution. A final consideration of this algorithm is it does not consider the order of events: likely a large part of mode determination.
+
+**Confidence:** The framework used here labels all values below zero as minor, while all values above zero are major. Given that the overall values fell into a limited range of the mathematically possible space, some consideration of confidence may be appropriate. For instance, some versions of the Krumhansl-Schmuckler keyfinding algorithm provide a value of confidence that considers not just the highest key coefficient, but how much higher that key coefficient is relative to the others. Given that a value of 1 or -1 is impossible in the mirmode scheme due to how Krumhansl-Schmuckler is calculated, what role do the coefficient values play beyond their sign?
+
+**The Minor Mode:** Identification of the minor mode from statistical patterns of pitch sets presents some issues. On one hand, the relative minor of any given major key could contain the same pitch class set as it's relative major, albeit with different distributions: the algorithm does acknowledge this by having different weights for minor keys. However, music theory typically recognizes three forms of the minor scale: natural, harmonic, and melodic. While all three forms are used interchangeably in music, the weights used here are attempting to compensate for all three. The result is a scheme where none of the forms are really favoured. Pieces in the natural minor will likely skew to their relative major, pieces in the harmonic minor will outperform the melodic minor, and the elusive fourth form (the bebop harmonic minor used in jazz) is a more natural fit to these weights (see @fig-krumhansl). I'm not sure if when we listen to music we really make that level of distinction. A large body of research has tried to remedy this by creating new weighting schemes for the algorithm, but I think this approach just might not work. In much of this work (on symbolic notation), they find that identifying the relative or dominant or subdominant key is quite common.
+```{r fig-krumhansl, fig.cap = 'C Major/Minor weights for Krumhansl/Schmuckler keyfinding algorithm.'}
+krum <- data.frame(read.csv("data/krum.csv",
+                            header = TRUE))
+###############################################################################
+ggplot(krum, aes(x = chroma, y = weight, group = mode)) +
+        geom_line(aes(linetype = mode))
+
+# HOW MANY WERE CORRECT KEY WISE
+# HOW MANY WENT TO THE RELATIVE 
+```
+
+# Future Directions
+The present exploratory analysis may be useful as a framework for testing audio file musical feature extraction more generally. Structural features such as tonality and mode are generally thought to be relatively unaffected by changes in surface and expressive features. However, this study shows that for statistical feature extraction algorithms, an extracted feature like mode might be highly variable across different versions of the same piece of music. Analyzing multiple versions of the same piece of classical music offers the opportunity to see if a given extracted feature is influenced by version-specific changes. Further work on human participants should explore how version influences judgment of structural features: while the nominal mode is often agreed upon by music experts, naive listeners may not be as binary in their judgments. Future testing of audio feature extraction algorithms like those discussed here should examine what characteristics are directly responsible for the variability across versions. While analyzing commercially produced audio files may have ecological validity and obvious applications in music information retrieval (such as recommendations systems), these files may not be precise enough for our current methods: files with larger sampling rates and less compression (both dynamic and digital) may be more conducive to producing an accurate chromagram. Similarly, it may be the case that variables at the performer level may in fact have an influence on a statistical method of extracting mode. A "pipeline" approach analyzing audio from symbolic notation up to commercial grade recordings with expressive features and audio compression added in between may be useful for determining how each of these factors contributes to increasing extracted feature variability across piece. The present analysis focuses on one type of music from a single composer. Future research might extend version comparison to other styles, genres, time periods, and composers. That said, notated music for piano with limited version variation (in comparison to "covers" in contemporary music) are ideal for this analysis, as the pitch content, particularly the pitch set, of the versions will remain fairly similar. 
+# Conclusion
+Here we analyzed multiple versions of the same set of pieces of classical piano music. While each version contains variation from multiple sources including performer-specific expressive features, recording technology, and room acoustic/instrument differences, these differences should not alter features that are considered to be compositional, such as mode. However, this exploratory analysis reveals a great deal of variability between versions indicating that the algorithm used by MIRtoolbox to determine mode is highly susceptible to variability between versions. In addition, the generally low coefficient values calls into question the confidence of any given mode determination by this algorithm. Moving forward, a more robust method for calculating mode that is not susceptible to these changes will be necessary, and other feature extractors should be examined with similar methods. 
+{{< pagebreak >}} 
+# References
+::: {#refs}
+:::
+{{< pagebreak >}} 
+# Appendix
+## Onsets
+```{r}
+#| label: tbl-onsetdev
+#| tbl-cap: "Onset Standard Deviations"
+# SDs for each prelude onsets
+ONpiece_sd <- data.frame()
+for (piece in unique(onset_data$key)) {
+        ONpiece_sd[nrow(ONpiece_sd) + 1, 1:3] <- c(piece,
+        round(sd(subset(onset_data, key == piece)$onsets), 3),
+        round(mean(subset(onset_data, key == piece)$onsets), 3))
+}
+setnames(ONpiece_sd, names(ONpiece_sd), c("Piece", "Standard Deviation", "Mean"))
+ONpiece_sd$"Coefficient of Variation" <- round(as.numeric(ONpiece_sd$"Standard Deviation") / as.numeric(ONpiece_sd$Mean), 3)
+knitr::kable(ONpiece_sd,
+             padding = 0)
+```
+{{< pagebreak >}} 
+```{r}
+#| label: tbl-onsetratedev
+#| tbl-cap: "Onset Rate Standard Deviations"
+# SDs for each prelude onsetrate
+ONRpiece_sd <- data.frame()
+for (piece in unique(onset_data$key)) {
+        ONRpiece_sd[nrow(ONRpiece_sd) + 1, 1:3] <- c(piece,
+        round(sd(subset(onset_data, key == piece)$onsetrate), 3),
+        round(mean(subset(onset_data, key == piece)$onsetrate), 3))
+}
+setnames(ONRpiece_sd, names(ONRpiece_sd), c("Piece", "Standard Deviation", "Mean"))
+ONRpiece_sd$"Coefficient of Variation" <- round(as.numeric(ONRpiece_sd$"Standard Deviation") / as.numeric(ONRpiece_sd$Mean), 3)
+knitr::kable(ONRpiece_sd,
+             padding = 0)
+```
+{{< pagebreak >}} 
+```{r}
+#| label: tbl-mirmodedev
+#| tbl-cap: "mirmode Standard Deviations"
+# SDs for each prelude mirmode
+piece_sd <- data.frame()
+for (piece in unique(mir_data$key)) {
+        piece_sd[nrow(piece_sd) + 1, 1:3] <- c(piece,
+        round(sd(subset(mir_data, key == piece)$mode_val), 3),
+        round(mean(subset(mir_data, key == piece)$mode_val), 3))
+}
+setnames(piece_sd, names(piece_sd), c("Piece", "Standard Deviation", "Mean"))
+piece_sd$"Coefficient of Variation" <- round(as.numeric(piece_sd$"Standard Deviation") / as.numeric(piece_sd$Mean), 3)
+knitr::kable(piece_sd,
+             padding = 0)
+```
+{{< pagebreak >}} 
+```{r fig-onsets, fig.cap = "onsets"}
+ggplot(onset_data, aes(x = onsets)) +
+        geom_boxplot(notch = FALSE) +
+        facet_grid(chroma ~ mode) +
+        labs(x = "Number of Onsets", y = "Key Chroma") +
+        theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
+ggplot(onset_data, aes(x = onsetrate)) +
+        geom_boxplot(notch = FALSE) +
+        facet_grid(chroma ~ mode) +
+        labs(x = "Onset Rate", y = "Key Chroma") +
+        theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
+ggplot(mir_data, aes(x = mode_val)) +
+        geom_boxplot(notch = FALSE) +
+        facet_grid(chroma ~ mode) +
+        labs(x = "mirmode Value", y = "Key Chroma") +
+        theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
+```
+```{r bkgrd-additionalPlots}
+#TODO: FIX FILE NAMES FOR CHROMAGRAMS
+###############################################################################
+# Pitch Class Distributions for MIDI files.
+for (ind in seq_len(nrow(midi_data))) {
+        title <- gsub(" ", "", paste(midi_data$album[ind],
+                                     midi_data$chroma[ind],
+                                     midi_data$mode[ind]))
+        png(file = paste("plots/pcd/", title, "_pcd", ".png", sep = ""))
+        chroma_mag <- c()
+        for (column in 8:19) {
+        chroma_mag <- c(chroma_mag, midi_datafull[ind, column])
+        }
+        barplot(chroma_mag,
+                names.arg = 0:11,
+                xlab = "Chroma",
+                ylab = "Chroma Proportion",
+                main = gsub(" ", "", paste(title, ":", "PCD")),
+                ylim = c(0, max(chroma_mag)),
+                col = "cornflowerblue")
+        dev.off()
+        }
+###############################################################################
+# Chromagrams for Commercial Audio.
+mir_chromagram <- mir_datafull
+names(mir_chromagram)[names(mir_chromagram == 'mir_datafull.filename')] <- 'filename'
+mir_chromagram$artist  <- mir_datafull$artist
+mir_chromagram$performance  <- mir_datafull$performance
+mir_chromagram$chroma  <- mir_datafull$chroma
+mir_chromagram$mode  <- mir_datafull$mode
+mir_chromagram$key <- paste(mir_chromagram$chroma, mir_chromagram$mode)
+mir_chromagram$album <- paste(mir_chromagram$artist, mir_chromagram$year)
+for (ind in seq_len(nrow(mir_chromagram))) {
+  mir_chromagram$artist_fullname[ind] <- subset(metadata, Surname == mir_chromagram$artist[ind])$Artist[1]
+}
+for (ind in seq_len(nrow(mir_chromagram))) {
+        title <- paste(mir_chromagram$album[ind],
+                 "_",
+                 mir_chromagram$key[ind],
+                 "_Chromagram",
+                 sep = "")
+        chroma_mag <- data.frame(magnitude = as.vector(as.matrix(mir_chromagram[ind,8:19])), chroma = as.factor(0:11))
+        ggplot(chroma_mag, aes(x = chroma, y = magnitude)) +
+               geom_bar(stat='identity') +
+               labs(y = "Magnitude",
+                    x = "Chroma",
+                    title = title) +
+               theme(panel.grid.major = element_blank(),
+                     panel.grid.minor = element_blank())
+        ggsave(paste("plots/chromagrams/", title, ".png", sep = ""))
+}
+###############################################################################
+# Individual Prelude Dotplots
+keys <- c()
+for (mode in c("Major", "Minor")) {
+        for (pc in 0:11) {
+            keys <- c(keys, paste(pc, mode, sep = " "))
+        }
+    }
+for (key_n in keys) {
+    png(file = (gsub(" ", "", paste("./plots/prelude_dotplots/",
+                                    key_n,
+                                    "_dotplot", ".png"))))
+    dotchart(subset(mir_data, key == key_n)$mode_val,
+             labels = subset(mir_data, key == key_n)$album,
+             xlim = c(-0.5, 0.5),
+             pch = 21, bg = "cornflowerblue", pt.cex = 1.5,
+             main = paste("Bach Prelude", key_n, ": mirmode"),
+             xlab = "mirmode Value",
+             ylab = "Performance")
+             abline(v = 0, col = "gray")
+    dev.off()
+}
+```

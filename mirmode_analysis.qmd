@@ -149,17 +149,17 @@ midikern_correl = [pearsonr(list(corpus_analyzed_midi[midifile].pcd.values()),
 shutil.rmtree("stimuli", ignore_errors=True)                                          
 ```
 ```{r bkgrd-analysisCleanup, echo = FALSE, message = FALSE, warning = FALSE, results = "hide"}
-#unlink("stimuli.zip") 
+unlink("stimuli.zip") 
 ```
 ```{r bkgrd-setup, echo = FALSE, message = FALSE, warning = FALSE}
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 library(ggplot2)
 library(data.table)
 library(ggpubr)
-dir.create("plots")
-dir.create("plots/pcd")
-dir.create("plots/chromagrams")
-dir.create("plots/prelude_dotplots")
+#dir.create("plots")
+#dir.create("plots/pcd")
+#dir.create("plots/chromagrams")
+#dir.create("plots/prelude_dotplots")
 ###############################################################################
 # Metadata
 metadata <- data.frame(read.csv("data/metadata.csv",
@@ -411,6 +411,7 @@ synth_calc <- data.frame(c(sum(subset(synth_data, mode == "Major")$mode_calculat
                         c(sum(subset(synth_data, mode == "Minor")$mode_calculated == "Major", na.rm = TRUE),
                         sum(subset(synth_data, mode == "Minor")$mode_calculated == "Minor", na.rm = TRUE)))
 ```
+
 |             | MIDI               |                    | Synthesized Audio   |                     |
 |---------------|---------------|---------------|---------------|---------------|
 |             | Major~nom~         | Minor~nom~         | Major~nom~          | Minor~nom~          |
@@ -432,9 +433,30 @@ labs(x = "mirmode Value", y = "Key Chroma") +
 theme(legend.title = element_blank(),
       panel.grid.major = element_blank(),
       panel.grid.minor = element_blank(),
-      legend.position = "bottom") +
+      legend.position = "bottom", panel.background = element_blank()) +
 geom_path(aes(color = delta)) +
 scale_colour_gradient(labels = c("Minor", "", "Major", ""), low = "cornflowerblue", high = "#FF0000") +
+facet_grid( ~ mode)
+```
+
+```{r}
+midi_synth2 <- subset(all_data, instrument == "MIDI" | instrument == "Synthesized")
+for (ind in seq_len(nrow(midi_synth2))) {
+  midi_synth2$delta[ind] <- midi_synth2$mode_val[ind] - subset(midi_data, key == midi_synth2$key[ind])$mode_val
+}
+test6 <- c(ifelse(midi_synth2$delta > 0, "red", "blue"))
+###############################################################################
+tibble(midi_synth2) %>%
+filter(instrument == "MIDI") %>%
+ggplot(aes(mode_val, as.factor(chroma))) + 
+geom_vline(xintercept = 0, color = "gray") +
+geom_point(aes(shape = factor(instrument))) +
+scale_shape_manual(values=c(1, 16)) +
+labs(x = "mirmode Value", y = "Key Chroma") +
+theme(legend.title = element_blank(),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      legend.position = "bottom", panel.background = element_blank()) +
 facet_grid( ~ mode)
 ```
 
@@ -464,17 +486,15 @@ bigplot$type <- ifelse(bigplot$album == "MIDI", "MIDI", ifelse(bigplot$album == 
 ###############################################################################
 ggplot(bigplot, aes(x = mode_val, fill = type)) +
         geom_vline(xintercept = 0, color = "dark gray") +
-        geom_dotplot() +
+        geom_dotplot(binwidth = 0.03, dotsize = 1.25) +
         labs(x = "mirmode Value", y = "Number of Recordings") +
         xlim(c(-0.4, 0.4)) +
         theme(legend.position = "bottom") +
         facet_grid(chroma~mode) +
-        theme(axis.text.y = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+        theme(axis.text.y = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), legend.position = "none") +
         scale_y_continuous(sec.axis = sec_axis(~ . , name = "Key Chroma", breaks = NULL, labels = NULL))
 ```
-{{< pagebreak >}}
-## mirmode Sum Method
-In addition to the default method for calculating the mirmode coefficient, MIRtoolbox offers the option to calculate the coefficient by subtracting the sum of all minor key coefficients from the sum of all major key coefficients. However, since the values no longer necessarily lie between -1 and 1, where to draw a line between major and minor predictions is unclear, making the application of this method limited. In the case of the MIDI representations, the values lie between -0.003 and 0.003 while the commercial audio values lie between 2.381 and 6.222 (@fig-boxplotSum). Additionally, discriminability between the nominally major and minor pieces is considerably less defined in comparison to the default method (@fig-boxplot). As a result, the default method appears to be more conducive to real world analysis. Since it is difficult to establish where the line might be drawn between major and minor, tables for computed-nominal matches have not been included.
+
 ```{r fig-boxplotSum, fig.cap = "Distributions of mirmode values for commercial audio and MIDI files based on nominal mode."}
 ggarrange(ggplot(audio_data, aes(x = mode, y = mode_valsum, fill = mode)) +
                 geom_boxplot(notch = TRUE) +
@@ -489,18 +509,6 @@ ggarrange(ggplot(audio_data, aes(x = mode, y = mode_valsum, fill = mode)) +
                 labs(title = "MIDI", x = "Nominal Mode", y = ""))
 ```
 
-# Discussion
-Below are some points for discussion on the mirmode algorithm. Most of these deal with technical problems that might be contributing to the pattern of results found here.
-\
-**Sampling rates:** The chromagram used in this method is calculated using FFT. The temporal precision of FFT is limited by the Nyquist limit (the limit of distinguishable frequencies) of a signal. In the case of commercial audio, our Nyquist limit is 20kHz, which is fine given the range of human hearing. However, the temporal precision of FFT at the Nyquist limit is defined by the sampling unit: 1 second. So at 20kHz, our temporal precision is 1s, at 10kHz our temporal precision is 500ms, etc, etc. I suspect that moving to higher sampling rates such as 96kHz or 192kHz (well within the range of our current technology) might result in a chromagram more accurate. 
-
-**Chromagram Noise:** Regardless of sampling rate, the chromagram will always be susceptible to some noise because instruments are seldom tuned exactly and consistently to 440Hz, and most microphones and preamplifiers (not to mention equalizers and compressors) produce some degree of non-linear distortion. This shouldn't be an issue for the synthesized audio, though. I think it would be worthwhile to explore beyond sample rates and see if this method works well even under ideal circumstances.
-
-**Krumhansl Schmuckler:** While Krumhansl (1990) found the key finding algorithm had a 91.7% match rate to the nominal key in all 48 preludes in the WTC, these results do not seem to replicate with audio. One way to look at these results is that the theory behind this is fine, but the chromagrams are inaccurate. With more time I would have liked to explore some measure of comparing the chromagrams to the pitch class distribution. A final consideration of this algorithm is it does not consider the order of events: likely a large part of mode determination.
-
-**Confidence:** The framework used here labels all values below zero as minor, while all values above zero are major. Given that the overall values fell into a limited range of the mathematically possible space, some consideration of confidence may be appropriate. For instance, some versions of the Krumhansl-Schmuckler keyfinding algorithm provide a value of confidence that considers not just the highest key coefficient, but how much higher that key coefficient is relative to the others. Given that a value of 1 or -1 is impossible in the mirmode scheme due to how Krumhansl-Schmuckler is calculated, what role do the coefficient values play beyond their sign?
-
-**The Minor Mode:** Identification of the minor mode from statistical patterns of pitch sets presents some issues. On one hand, the relative minor of any given major key could contain the same pitch class set as it's relative major, albeit with different distributions: the algorithm does acknowledge this by having different weights for minor keys. However, music theory typically recognizes three forms of the minor scale: natural, harmonic, and melodic. While all three forms are used interchangeably in music, the weights used here are attempting to compensate for all three. The result is a scheme where none of the forms are really favoured. Pieces in the natural minor will likely skew to their relative major, pieces in the harmonic minor will outperform the melodic minor, and the elusive fourth form (the bebop harmonic minor used in jazz) is a more natural fit to these weights (see @fig-krumhansl). I'm not sure if when we listen to music we really make that level of distinction. A large body of research has tried to remedy this by creating new weighting schemes for the algorithm, but I think this approach just might not work. In much of this work (on symbolic notation), they find that identifying the relative or dominant or subdominant key is quite common.
 ```{r fig-krumhansl, fig.cap = 'C Major/Minor weights for Krumhansl/Schmuckler keyfinding algorithm.'}
 krum <- data.frame(read.csv("data/krum.csv",
                             header = TRUE))
@@ -512,17 +520,6 @@ ggplot(krum, aes(x = chroma, y = weight, group = mode)) +
 # HOW MANY WENT TO THE RELATIVE 
 ```
 
-# Future Directions
-The present exploratory analysis may be useful as a framework for testing audio file musical feature extraction more generally. Structural features such as tonality and mode are generally thought to be relatively unaffected by changes in surface and expressive features. However, this study shows that for statistical feature extraction algorithms, an extracted feature like mode might be highly variable across different versions of the same piece of music. Analyzing multiple versions of the same piece of classical music offers the opportunity to see if a given extracted feature is influenced by version-specific changes. Further work on human participants should explore how version influences judgment of structural features: while the nominal mode is often agreed upon by music experts, naive listeners may not be as binary in their judgments. Future testing of audio feature extraction algorithms like those discussed here should examine what characteristics are directly responsible for the variability across versions. While analyzing commercially produced audio files may have ecological validity and obvious applications in music information retrieval (such as recommendations systems), these files may not be precise enough for our current methods: files with larger sampling rates and less compression (both dynamic and digital) may be more conducive to producing an accurate chromagram. Similarly, it may be the case that variables at the performer level may in fact have an influence on a statistical method of extracting mode. A "pipeline" approach analyzing audio from symbolic notation up to commercial grade recordings with expressive features and audio compression added in between may be useful for determining how each of these factors contributes to increasing extracted feature variability across piece. The present analysis focuses on one type of music from a single composer. Future research might extend version comparison to other styles, genres, time periods, and composers. That said, notated music for piano with limited version variation (in comparison to "covers" in contemporary music) are ideal for this analysis, as the pitch content, particularly the pitch set, of the versions will remain fairly similar. 
-# Conclusion
-Here we analyzed multiple versions of the same set of pieces of classical piano music. While each version contains variation from multiple sources including performer-specific expressive features, recording technology, and room acoustic/instrument differences, these differences should not alter features that are considered to be compositional, such as mode. However, this exploratory analysis reveals a great deal of variability between versions indicating that the algorithm used by MIRtoolbox to determine mode is highly susceptible to variability between versions. In addition, the generally low coefficient values calls into question the confidence of any given mode determination by this algorithm. Moving forward, a more robust method for calculating mode that is not susceptible to these changes will be necessary, and other feature extractors should be examined with similar methods. 
-{{< pagebreak >}} 
-# References
-::: {#refs}
-:::
-{{< pagebreak >}} 
-# Appendix
-## Onsets
 ```{r}
 #| label: tbl-onsetdev
 #| tbl-cap: "Onset Standard Deviations"

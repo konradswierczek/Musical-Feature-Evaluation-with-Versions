@@ -1,16 +1,22 @@
-﻿First Name,Surname,Artist,Year Recorded,Year Released,Instrument,Performance
-Pietro,De-Maria,Pietro De Maria,N/A,N/A,Synthesized,S1
-Pietro,De-Maria,Pietro De Maria,2015,2015,Piano,P1
-Jorg,Demus,Jorg Demus,1956,1992,Piano,P1
-Edwin,Fischer,Edwin Fischer,1934,2007,Piano,P1
-Martin,Galling,Martin Galling,1964,2006,Harpsichord,H1
-Glenn,Gould,Glenn Gould,1965,1965,Piano,P1
-Friedrich,Gulda,Friedrich Gulda,1972,1995,Piano,P1
-Wanda,Landowska,Wanda Landowska,1951,1987,Harpsichord,H1
-Gustav,Leonhardt,Gustav Leonhardt,1973,1989,Harpsichord,H1
-Joao,Martins,Joao Carlos Martins,1981,1994,Piano,P1
-Anthony,Newman,Anthony Newman,2000,2001,Harpsichord,H1
-Anthony,Newman,Anthony Newman,2001,2001,Piano,P2
-Anthony,Newman,Anthony Newman,1973,1983,Harpsichord,H3
-Sviatoslav,Richter,Sviatoslav Richter,1972,1992,Piano,P1
-Rosalyn,Tureck,Rosalyn Tureck,1953,1999,Piano,P1
+﻿albumID,performer_full,yearRecorded,yearReleased,instrument,label
+NA,Pietro De Maria,N/A,N/A,MIDI,N/A
+NA,Pietro De Maria,N/A,N/A,Synthesized,N/A
+bachAshk2006Deadpan,Vladimir Ashkenazy,N/A,N/A,Synthesized,N/A
+bachDemaria2015Deadpan,Pietro De Maria,N/A,N/A,Synthesized,N/A
+bachDemaria2015,Pietro De Maria,2015,2015,Piano,DECCA Music Group Limited
+bachDemus1970,Jorg Demus,1956,1992,Piano,"MCA Records, Inc"
+bachFischer1934,Edwin Fischer,1934,2007,Piano,EMI Records Ltd.
+bachGalling1964,Martin Galling,1964,2006,Harpsichord,Membran Music Ltd.
+bachGould1971,Glenn Gould,1965,1965,Piano,Sony Classical
+bachGulda,Friedrich Gulda,1972,1995,Piano,Decca
+bachLandowska1951,Wanda Landowska,1951,1987,Harpsichord,BGM Music
+bachLeonhardt1973,Gustav Leonhardt,1973,1989,Harpsichord,BMG Classics
+bachMartins1964,Joao Carlos Martins,1981,1994,Piano,Labor Records
+bachNewman2001harpsichord,Anthony Newman,2000,2001,Harpsichord,KHAEON World Music. Inc.
+bachNewman2001piano,Anthony Newman,2001,2001,Piano,"KHAEON World Music, Inc"
+bachRichter1970,Sviatoslav Richter,1972,1992,Piano,BMG Music
+bachTureck1953,Rosalyn Tureck,1953,1999,Piano,Deutsche Grammophon
+bachAshk2006,Vladimir Ashkenazy,2004,2006,Piano,Decca Record Company Ltd.
+bachHamilton1964,Malcolm Hamilton,1964,1964,Harpsichord,Everest
+bachBarenboim2006,Daniel Barenboim,2006,2006,Piano,Warner Classics
+bachKirkpatrick1963,Ralph Kirkpatrick,1963,1963,Harpsichord,Deutsche Grammonphon

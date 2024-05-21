@@ -1,0 +1,42 @@
+```{r}
+#| label: fig-mode_check
+#| fig-cap: "mirmode values for MIRtoolbox mirmode and MIRtoolbox mirchromagram HPCP with mirmode reproduction."
+mode_check <- raw_data %>%
+filter(`albumID` != 'flatMIDI',
+       `albumID` != 'bachAshk2006Deadpan',
+       `albumID` != 'bachDemaria2015Deadpan') %>%
+filter(tool == 'MIRtoolbox',
+       feature == 'mirmode') %>%
+spread(algo, val)
+
+ggplot(mode_check, aes(y = dir, x = std)) +
+geom_point() +
+xlab('MIRtoolbox mirmode') +
+ylab('MIRtoolbox HPCP with mirmode reproduction')+
+theme(panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank()) +
+annotate(geom = 'text', x = -0.15, y = 0.4,
+         label = paste('Pearson Correlation = ',
+                       cor(mode_check$dir, mode_check$std))) +
+theme_maple()
+```
+
+```{r}
+#| label: fig-raw_values
+#| fig-cap: "Distributions of original extracted values for each feature/tool combination."
+data %>%
+ggplot(
+  aes(
+    x = val,
+    y = 1
+  )
+) +
+geom_violin(
+
+) +
+facet_grid(
+  tool ~ feature,
+  scales = "free"
+) +
+theme_maple()
+```

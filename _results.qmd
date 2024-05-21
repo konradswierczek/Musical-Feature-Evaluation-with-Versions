@@ -1,0 +1,455 @@
+@fig-overview shows the version variability ratio of each prelude across features and tools. Distributions of raw values are available in the supplementary materials. As it is dimensionless, the variability ratio provides an intuitive mechanism to assess consistency across both tools and features. The mean values of all preludes for a given feature/tool combination indicate the overall variability of that combination, while the variability of ratios across all pieces indicate the influence of prelude-specific factors (i.e., structural features).
+
+```{r}
+var_data <- data %>%
+relative_variability(
+  "pieceID",
+  c(
+    "tool",
+    "algo",
+    "feature"
+  ),
+  "val"
+) %>%
+mutate(
+  key = mapply(
+    pretty_pieceID,
+    pieceID,
+    "bach-1",
+    format = "%tonic%"
+  ),
+  mode = ifelse(
+    grepl(
+      "M",
+      pieceID),
+    "Major",
+    "Minor"
+  )
+) %>%
+group_by(
+  tool,
+  feature
+) %>%
+mutate(
+  mean_ratio = mean(ratio)
+)
+```
+
+```{r eval}
+#| label: fig-overview
+#| fig-cap: "Version variability ratios for all 24 piano preludes. The gray lines indicate a ratio value of 1: the point of equal variability between versions of the same piece and the entire corpus. The black lines indicate the means of all ratios for a given feature/tool combination. Colour indicates the nominal mode: for instance, the C Major prelude corresponds to the red point with the letter 'C'."
+#| fig-width: 8.5
+#| fig-height: 7.5
+var_data %>%
+label_dotplot(
+  val = "ratio",
+  groups = c("tool", "feature"),
+  breaks = "FD"
+) %>%
+ggplot(
+  aes(
+    x = x_mid,
+    y = y,
+    colour = mode,
+    fill = mode
+  )
+) +
+geom_vline(
+  xintercept = 1,
+  colour = "lightgray"
+) +
+geom_vline(
+  aes(
+    xintercept = mean_ratio
+  ),
+  colour = "black"
+) +
+geom_point(
+  shape = 15,
+  size = 4
+) +
+geom_text(
+  aes(
+    label = key
+  ),
+  colour = "white",
+  size = 2.75
+) +
+facet_grid(
+       feature ~ tool
+) +
+theme_maple() +
+theme(
+  legend.position = "bottom",
+  axis.text.y = element_blank(),
+  axis.ticks.y = element_blank(),
+) +
+labs(
+  x = "Version Variability Ratio",
+  y = "Number of Preludes",
+  colour = "Nominal Mode",
+  fill = "Nominal Mode"
+) +
+scale_colour_manual(values = mode_cols) +
+scale_fill_manual(values = mode_cols)
+```
+
+To evaluate the three questions discussed above, we use permutation tests on the mean difference in the version variability ratios of the 24 preludes for each pairwise combination of factors due to the non-normality and unequal variances in this data. Permutation tests were performed in R using a customized function available at <https://github.com/konradswierczek/Musical-Feature-Evaluation-with-Versions>.
+
+```{r}
+mean_func <- function(x, indices) {
+  return(mean(x[indices]))
+}
+boot_data <- var_data %>%
+  group_by(
+    feature,
+    tool
+  ) %>%
+  summarize(
+    mean = mean(ratio),
+    boot = boot.ci(
+      boot(
+        ratio,
+        mean_func,
+        R = 1000
+      ),
+      type = "bca"
+    )$bca
+  ) 
+```
+
+# Question 1: Between-Tool Feature Variability
+
+We performed permutation tests on pairwise combinations of tools within a given feature (@fig-question1). Results revealed a significant difference between all tools for relative mode extractions. Librosa is significantly less variable than both MIRtoolbox and Librosa (p \< 0.01), and MIRtoolbox is significantly less variable than Essentia (p \< 0.01). No other significant differences between tools were found for any other feature.
+
+```{r}
+res_tool <- tibble()
+for (f in unique(data$feature)) {
+  res_tool <- bind_rows(res_tool, var_data %>%
+    filter(feature == f) %>%
+    mutate(feature = as.character(feature)) %>%
+    pairwise_permutation_tests("tool", "ratio") %>%
+    mutate(feature = f)
+  )
+}
+
+res_tool_significant <- res_tool %>%
+  filter(
+    p_value < 0.05
+  ) %>%
+  mutate(
+    y = case_when(
+      group1 == "Essentia" & group2 == "Librosa" ~ 0.95,
+      group1 == "Essentia" & group2 == "MIRtoolbox" ~ 1,
+      group1 == "Librosa" & group2 == "MIRtoolbox" ~ 0.8,
+    ),
+    sig = case_when(
+    p_value < 0.001 ~ "***",
+    p_value < 0.01 ~ "**",
+    p_value < 0.05 ~ "*",
+    TRUE ~ "")
+  )
+```
+
+```{r}
+#| label: fig-question1a
+#| fig-cap: "Version variability ratios for feature/tool combinations. Dots indicate the mean ratio for that combination, plotted with 95% adjusted bootstrap adjusted percentile confidence intervals (R = 1000). Significance Codes: * < 0.05, ** < 0.01, *** < 0.001. Note that these are the same values as Question 2, grouped according to feature rather than tool."
+#| fig-width: 8.5
+#| fig-height: 5.5
+boot_data %>%
+ggplot(aes(x = tool, y = mean, colour = tool)) +
+geom_point() +
+geom_errorbar(
+  aes(
+    ymin = boot[, 4],
+    ymax = boot[, 5]
+  ),
+  width = 0.2,
+  position = position_dodge(0.9)
+)  +
+geom_bracket(data = res_tool_significant,
+               aes(xmin = group1, xmax = group2,
+                   y.position = y, label = sig),
+               color = "black") +
+facet_wrap(.~feature, nrow = 1) +
+theme_maple() +
+theme(legend.position = "none",
+axis.text.x = element_text(angle = 30, hjust = 1)) +
+labs(y = "Version Variability Ratio", x = "Tool") +
+scale_colour_manual(values = tool_cols)
+```
+
+# Question 2: Comparing Variability Between Features
+
+Next, we evaluate the variability between features for each tool. In the same procedure as above, we conducted pairwise permutation tests on pairwise combinations of features for each tool. In respect to Essentia, the number of onsets is significantly less variable than all other features. However, there is no significant difference between tempo and relative mode or spectral centroid. In respect to Librosa, results revealed significant differences between all pairwise comparisons of features except relative mode and the number of onsets (however, the version variability ratios of librosa indicate greater piece-level variability). Both invariant features (see @fig-question1) are less variable than both variant features (p \< 0.001). Within variant features, tempo is less variable than spectral centroid (p \< 0.05). Finally, in respect to MIRtoolbox, results revealed significant differences between all pairwise comparisons of features. Specifically, both invariant features (see @fig-question1) are less variable than both variant features (p \< 0.001). Within variant features, tempo is less variant than spectral centroid (p \< 0.001), while within invariant features, the number of onsets is less variable than relative mode.
+
+```{r}
+res_feature <- tibble()
+for (t in unique(data$tool)) {
+  res_feature <- bind_rows(res_feature, var_data %>%
+    filter(tool == t) %>%
+    mutate(feature = as.character(feature)) %>%
+    pairwise_permutation_tests("feature", "ratio") %>%
+    mutate(tool = t)
+  )
+}
+
+res_feature_significant <- res_feature %>%
+  filter(
+    p_value < 0.05
+  ) %>%
+  mutate(
+    y = case_when(
+      (group1 %in% c("Relative Mode", "Number of Onsets") & group2 %in% c("Relative Mode", "Number of Onsets")) & tool == "Essentia" ~ 1,
+      (group1 %in% c("Relative Mode", "Spectral Centroid (Hz)") & group2 %in% c("Relative Mode", "Spectral Centroid (Hz)")) & tool == "Essentia" ~ 1.125,
+      (group1 %in% c("Number of Onsets", "Spectral Centroid (Hz)") & group2 %in% c("Number of Onsets", "Spectral Centroid (Hz)")) & tool == "Essentia" ~ 1.2,
+      (group1 %in% c("Tempo (BPM)", "Number of Onsets") & group2 %in% c("Tempo (BPM)", "Number of Onsets")) & tool == "Essentia" ~ 1.275,
+      #
+      (group1 %in% c("Number of Onsets", "Relative Mode") & group2 %in% c("Number of Onsets", "Relative Mode")) & tool == "MIRtoolbox" ~ 0.85,
+      (group1 %in% c("Tempo (BPM)", "Relative Mode") & group2 %in% c("Tempo (BPM)", "Relative Mode")) & tool == "MIRtoolbox" ~ 1.1,
+      (group1 %in% c("Tempo (BPM)", "Number of Onsets") & group2 %in% c("Tempo (BPM)", "Number of Onsets")) & tool == "MIRtoolbox" ~ 1.4,
+      (group1 %in% c("Tempo (BPM)", "Spectral Centroid (Hz)") & group2 %in% c("Tempo (BPM)", "Spectral Centroid (Hz)")) & tool == "MIRtoolbox" ~ 1.175,
+      (group1 %in% c("Spectral Centroid (Hz)", "Number of Onsets") & group2 %in% c("Spectral Centroid (Hz)", "Number of Onsets")) & tool == "MIRtoolbox" ~ 1.25,
+      (group1 %in% c("Spectral Centroid (Hz)", "Relative Mode") & group2 %in% c("Spectral Centroid (Hz)", "Relative Mode")) & tool == "MIRtoolbox" ~ 1.325,
+      #
+      (group1 %in% c("Tempo (BPM)", "Relative Mode") & group2 %in% c("Tempo (BPM)", "Relative Mode")) & tool == "Librosa" ~ 1.1,
+      (group1 %in% c("Tempo (BPM)", "Spectral Centroid (Hz)") & group2 %in% c("Tempo (BPM)", "Spectral Centroid (Hz)")) & tool == "Librosa" ~ 1.175,
+      (group1 %in% c("Tempo (BPM)", "Number of Onsets") & group2 %in% c("Tempo (BPM)", "Number of Onsets")) & tool == "Librosa" ~ 1.225,
+      (group1 %in% c("Relative Mode", "Spectral Centroid (Hz)") & group2 %in% c("Relative Mode", "Spectral Centroid (Hz)")) & tool == "Librosa" ~ 1.3,
+      (group1 %in% c("Spectral Centroid (Hz)", "Number of Onsets") & group2 %in% c("Spectral Centroid (Hz)", "Number of Onsets")) & tool == "Librosa" ~ 1.375,
+      .default = 1
+    ),
+    sig = case_when(
+    p_value < 0.001 ~ "***",
+    p_value < 0.01 ~ "**",
+    p_value < 0.05 ~ "*",
+    TRUE ~ "")
+  )
+```
+
+```{r}
+#| label: fig-question1
+#| fig-cap: "Version variability ratios for feature/tool combinations. Dots indicate the mean ratio for that combination, plotted with 95% adjusted bootstrap adjusted percentile confidence intervals (R = 1000). Significance Codes: * < 0.05, ** < 0.01, *** < 0.001. Note that these are the same values as Question 1, grouped according to tool rather than feature."
+#| fig-width: 8.5
+#| fig-height: 5.5
+boot_data %>%
+ggplot(aes(x = feature, y = mean, colour = tool)) +
+geom_point() +
+geom_errorbar(
+  aes(
+    ymin = boot[, 4],
+    ymax = boot[, 5]
+  ),
+  width = 0.2,
+  position = position_dodge(0.9)
+)  +
+geom_bracket(
+  data = res_feature_significant,
+  aes(
+    xmin = group1,
+    xmax = group2,
+    label = sig,
+    y.position = y
+  ),
+  color = "black"
+) +
+facet_wrap(.~tool, nrow = 1) +
+theme_maple() +
+theme(legend.position = "none",
+axis.text.x = element_text(angle = 30, hjust = 1)) +
+labs(y = "Version Variability Ratio", x = "Tool") +
+scale_colour_manual(values = tool_cols)
+```
+
+# Question 3: Mediating Effects
+
+We examine the effect of two potential mediating variables (instrument, nominal mode) on the variability of a given feature-tool combination. Permutation tests on the effect of instrument (piano or harpsichord) revealed no sigificant differences (p \> 0.05) for any feature/tool combination (see @fig-question2a).
+
+```{r}
+var_data_ins <- data %>%
+relative_variability(
+  "pieceID",
+  c(
+    "tool",
+    "feature",
+    "instrument"
+  ),
+  "val"
+) %>%
+mutate(key = mapply(pretty_pieceID, pieceID, "bach-1", format = "%tonic%"),
+       mode = ifelse(grepl("M", pieceID), "Major", "Minor")
+) %>%
+group_by(tool, feature) %>%
+mutate(mean_ratio = mean(ratio))
+```
+
+```{r}
+res_ins <- tibble()
+var_data_ins <- var_data_ins %>%
+mutate(feature_tool = paste(feature, tool, sep = " "))
+for (ft in unique(var_data_ins$feature_tool)) {
+  res_ins <- bind_rows(res_ins, var_data_ins %>%
+    filter(feature_tool == ft) %>%
+    mutate(feature = as.character(feature)) %>%
+    pairwise_permutation_tests("instrument", "ratio") %>%
+    mutate(feature_tool = ft)
+  )
+}
+
+res_ins_significant <- res_ins %>%
+  filter(
+    p_value < 0.05
+  ) %>%
+  mutate(
+    sig = case_when(
+    p_value < 0.001 ~ "***",
+    p_value < 0.01 ~ "**",
+    p_value < 0.05 ~ "*",
+    TRUE ~ "")
+  )
+```
+
+In respect to nominal mode, permutation tests revealed no significant differences (p \> 0.05) for any feature/tool combination (see @fig-question2b).
+
+```{r}
+#| label: fig-question2a
+#| fig-cap: "Version variability ratios for feature/tool combinations, further subset by the instrument used in the performance. Dots indicate the mean ratio for that combination, plotted with 95% adjusted bootstrap adjusted percentile confidence intervals (R = 1000). Significance Codes: * < 0.05, ** < 0.01, *** < 0.001."
+#| fig-width: 8.5
+#| fig-height: 5.5
+var_data_ins %>%
+  group_by(
+    feature,
+    tool,
+    instrument,
+  ) %>%
+  summarize(
+    mean = mean(ratio),
+    boot = boot.ci(
+      boot(
+        ratio,
+        mean_func,
+        R = 1000
+      ),
+      type = "bca"
+    )$bca
+  ) %>%
+ggplot(
+  aes(
+    x = instrument,
+    y = mean,
+    col = instrument
+  )
+) +
+geom_point() +
+geom_errorbar(
+  aes(
+    ymin = boot[, 4],
+    ymax = boot[, 5]),
+    width = 0.2
+)  +
+facet_grid(
+  tool~feature
+) +
+theme_maple() +
+labs(
+  y = "Standard Deviation Between Versions",
+  x = "Instrument"
+) +
+scale_colour_manual(
+  values = c(
+    "cornflowerblue",
+    "firebrick4"
+  )
+)
+```
+
+```{r}
+var_data_mode <- data %>%
+relative_variability(
+  "pieceID",
+  c(
+    "tool",
+    "feature",
+    "mode"
+  ),
+  "val"
+) %>%
+mutate(key = mapply(pretty_pieceID, pieceID, "bach-1", format = "%tonic%"),
+       mode = ifelse(grepl("M", pieceID), "Major", "Minor")
+) %>%
+group_by(tool, feature) %>%
+mutate(mean_ratio = mean(ratio))
+```
+
+```{r}
+res_mode <- tibble()
+var_data_mode <- var_data_mode %>%
+mutate(feature_tool = paste(feature, tool, sep = " "))
+for (ft in unique(var_data_mode$feature_tool)) {
+  res_mode <- bind_rows(res_mode, var_data_mode %>%
+    filter(feature_tool == ft) %>%
+    mutate(feature = as.character(feature)) %>%
+    pairwise_permutation_tests("mode", "ratio") %>%
+    mutate(feature_tool = ft)
+  )
+}
+
+res_mode_significant <- res_mode %>%
+  filter(
+    p_value < 0.05
+  ) %>%
+  mutate(
+    sig = case_when(
+    p_value < 0.001 ~ "***",
+    p_value < 0.01 ~ "**",
+    p_value < 0.05 ~ "*",
+    TRUE ~ "")
+  )
+```
+
+```{r}
+#| label: fig-question2b
+#| fig-cap: "Version variability ratios for feature/tool combinations, further subset by the nominal mode. Dots indicate the mean ratio for that combination, plotted with 95% adjusted bootstrap adjusted percentile confidence intervals (R = 1000). Significance Codes: * < 0.05, ** < 0.01, *** < 0.001."
+#| fig-width: 8.5
+#| fig-height: 5.5
+var_data_mode %>%
+  group_by(
+    feature,
+    tool,
+    mode,
+  ) %>%
+  summarize(
+    mean = mean(ratio),
+    boot = boot.ci(
+      boot(
+        ratio,
+        mean_func,
+        R = 1000
+      ),
+      type = "bca"
+    )$bca
+  ) %>%
+ggplot(
+  aes(
+    x = mode,
+    y = mean,
+    col = mode
+  )
+) +
+geom_point() +
+geom_errorbar(
+  aes(
+    ymin = boot[, 4],
+    ymax = boot[, 5]),
+    width = 0.2
+)  +
+facet_grid(
+  tool~feature
+) +
+theme_maple() +
+labs(
+  y = "Standard Deviation Between Versions",
+  x = "Nominal Mode"
+) +
+scale_colour_manual(values = mode_cols)
+```

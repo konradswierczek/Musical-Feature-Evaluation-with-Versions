@@ -1,0 +1,172 @@
+## Stimuli
+
+We analyzed 17 unique albums, each of which contain all 24 preludes from J.S. Bach's "The Well Tempered Clavier" Book 1 (`r length(unique(data$albumID)) * 24` files). From each Compact Disc (CD), we extracted audio encoded in the Waveform Audio File format (.wav) at a sampling rate of 44100 Hz with 16 bit-depth. Each analyzed audio file includes the first eight measures of the prelude, as outlined in @battcock_acoustically_2019, however without the two second fade-out used in that study. Sixteen notable performers recorded these albums between 1934 and 2015 (see @tbl-metadata for more details). `r length(unique(data %>% filter(instrument == "Piano") %>% pull(albumID)))` are piano performances and `r length(unique(data %>% filter(instrument == "Harpsichord") %>% pull(albumID)))` are recorded on harpsichords. A subset of these albums are included in Palmer's analysis [@bach_well-tempered_2004] of the Well Tempered Clavier.
+
+```{r}
+#| label: tbl-metadata
+#| tbl-cap: "Performances of the Well Tempered Clavier used, with details."
+metadata[-c(1:4), ] %>%
+select(c(performer_full, yearRecorded, instrument, label)) %>%
+arrange(yearRecorded) %>%
+rename(Performer = performer_full, `Year Recorded` = yearRecorded, Instrument = instrument, Label = label) %>%
+kable()
+```
+
+## Extraction Tools
+
+We evaluated the outputs of three music content analysis tools: Essentia 2.1 beta5 [@bogdanov_essentia_nodate; @bogdanov_essentia_2013], MIRtoolbox 1.8.1 [@lartillot_matlab_2007; @preisach_matlab_2008] and Librosa 0.10.1 [@mcfee_librosa_2015]. All three are routinely used in research and industry applications at the time of writing. We selected these tools due to their prominence in the music information retrieval, music cognition, and empirical musicology literature (at the time of writing, Librosa has \~2300 citations on Google Scholar, whereas MIRtoolbox and Essentia respectively have \~1900 and \~640 citations). The implementation of these tools also varies making them more suitable for certain applications depending on the end-users’ goals and experience with scripting languages: Librosa is a Python package; Essentia a C++ library with an extensive Python Application Programming Interface (API), and MIRtoolbox is implemented within MATLAB. To streamline our procedure, we performed all analyses in Python, using the MATLAB Engine API in the case of MIRtoolbox. Our implementations of the analysis tools are available at <https://github.com/konradswierczek/Musical-Feature-Evaluation-with-Versions>.
+
+## Features
+
+For all analyses we used default or recommended settings to evaluate the baseline variability of each algorithm and to simulate “out-of-the-box” usage by the typical end-user. Although parameter optimization for specific use cases might increase the figure of merit of an algorithm, our focus here is the relative variability between tools and features rather than an evaluation of accuracy. Future work may use this method to explore how parameter optimization influences the variability of these tools (see further discussion below). To facilitate readily quantifiable comparisons, we select features that are represented with a single numeric value. In order to establish a baseline understanding of the range of variability, we identify two thought to be invariant (relative mode; number of onsets) and two thought to be variant (spectral centroid; tempo) across performances (see @tbl-feature_hypothesis).
+
+|               | Spectral          | Temporal         |
+|---------------|-------------------|------------------|
+| **Invariant** | Relative Mode     | Number of Onsets |
+| **Variant**   | Spectral Centroid | Tempo            |
+
+: Four features suitable for evaluation using the Feature Evaluation with Versions Procedure. {#tbl-feature_hypothesis}
+
+### Mode
+
+Modality, a key aspect of western musical structure, plays a crucial role in conveying musical emotion [@gagnon_mode_2003; @crowder_perception_1984]. Mode is generally defined as the pitch distribution and pitch order of a piece of music and is therefore a structural property that should not vary significantly between versions. Despite changes in pitch distributions between versions due to performer expressive timing and dynamics, in principle the extracted mode should remain relatively consistent. MIRtoolbox uses an audio file mode extraction procedure adapted from the Krumhansl-Schmuckler keyfinding algorithm [@krumhansl_cognitive_2001] with additional adaptations from @gomez_tonal_2006. This relative mode algorithm returns a value between -1 (minor) and 1 (major), the major and minor modes being the most frequently used in western tonal music. The underlying keyfinding algorithm traditionally relies on the pitch class distribution (PCD) of a musical score or other symbolic notation but relies on chroma features -- sometimes referred to as a chromagram or harmonic pitch class profile (HPCP) -- when analyzing audio files. Only MIRtoolbox has a native implementation of the mode extraction algorithm (mirmode), however all three tools can extract chroma features. We therefore wrote a standalone Python version of the mode extraction algorithm from MIRtoolbox to accept chroma features extracted with any tool (see @fig-mode_check in supplementary materials for the values of the mirmode algorithm directly from MIRtoolbox plotted against the values of our reproduction using chroma features extracted with MIRtoolbox's mirchromagram algorithm (Pearson's r = 1)). The values are identical, indicating our mode extraction algorithm is successfully reproducing the MIRtoolbox mirmode algorithm. MIRtoolbox also implements a Constant-Q Transform that could be applied to the mode algorithm, not considered here, Essentia implements both a Constant-Q Transform and a Fourier Transform, and Librosa implements a Short-Term Fourier Transform, Constant-Q Transform, Constant-Q Transform with CENS, and Variable-Q Transform. Details on these extractors can be found in each of the toolbox's extensive documentations.
+
+### Onsets
+
+Tracking onsets in an audio file is a useful mid-level feature for temporal and rhythmic analyses. It forms the basis of beat-tracking, tempo prediction, meter prediction, novelty metrics, and many other high-level features. However, onset analysis is useful here since while the length of versions may vary, the total number of onsets should not change between versions since pianists are playing from the same musical score. A notable exception to this is ornamentation, a common practice in baroque keyboard music where performers add unique elaborations at prescribed moments in the piece, which may cause slight differences in the number of onsets. Further, the speed at which elaborations such as trills are performed may lead to a difference in the number of onsets. Although MIRtoolbox and Librosa implement only one algorithm for onset extraction, Essentia has six. The final numeric value for comparison of this metric is the number of onsets detected in the audio file.
+
+### Spectral Centroid
+
+Spectral centroid is the weighted mean of frequency components in a signal, measured in Hertz (Hz), and is often used a simple predictor of the "brightness" of a sound [@klapuri_signal_2006] and more generally used in the classification of timbre. Since the timbre of a version is likely to vary depending on the instrument, acoustics, recording technology, and processing used, we would expect the spectral centroid to vary across versions. Each extraction tool used in this study only has one method for extracting spectral centroid.
+
+### Tempo
+
+Tempo, measured in Beats per Minute (BPM), is the speed or pace of a piece of music. Extracting tempo is useful for genre and style classification [@tzanetakis_musical_2002], predicting emotional appraisal [@eerola_emotional_2013], music theoretical analysis of versions [@bach_well-tempered_2004] and other tasks. Written compositions of classical music often have a BPM marking or a text annotation indicating a range of possible BPMs. However, performers can vary considerably in their choice of tempo and may also alter the tempo throughout a performance. Palmer's analysis of the Well Tempered Clavier [@bach_well-tempered_2004] reviews 13 performances and finds significant variation of tempo within pieces. We therefore expect tempo to vary between versions. MIRtoolbox and Librosa each have two methods for extracting tempo whereas we implement three methods from Essentia here.
+
+## Algorithm Selection
+
+For all features except Spectral Centroid there are multiple methods for extraction, as described above. Here we select one method for each feature/tool combination. Using MIDI representations of the first eight measures of the 24 preludes from Bach's Well Tempered Clavier, we extract the MIDI tempo, number of onsets, and the mode using the same mode extraction algorithm discussed above on a pitch class distribution. We also synthesize audio files from the MIDI with a generic piano sound font and extract the same features as described above. For each feature/tool combination where more than one algorithm is available, we calculate the mean squared error from the MIDI features (@tbl-selection). The lowest MSE within a feature/tool is selected for subsequent version analysis.
+
+```{python, eval = FALSE}
+import mido import pandas as pd data = [] for file in parser('midi'):     counter = 0     time = 0     for track in mido.MidiFile(file).tracks:         for msg in track:             if msg.type == "set_tempo":                 tempo = mido.tempo2bpm(msg.tempo)     for msg in absTime(file):             if msg['time_on'] != time:                 counter = counter + 1                 time = msg['time_on']     data.append({'file': file, 'tempo': tempo, 'attacks': counter})  ############################################################################### (pd.DataFrame(data)).to_csv('out.csv')
+```
+
+```{r}
+#| label: tbl-selection
+#| tbl-cap: "Mean Squared Error of synthesized audio compared to MIDI for each feature and algorithm."
+#| tbl-subcap:
+#|   - "Relative Mode"
+#|   - "Number of Onsets"
+#|   - "Tempo (BPM)"
+#| layout-ncol: 2
+
+selection <- raw_data %>%
+# Remove deadpan versions.
+  filter(
+    `albumID` != 'flatMIDI',
+    `albumID` != 'bachAshk2006Deadpan',
+    `albumID` != 'bachDemaria2015Deadpan',
+    `albumID` != 'bachNewman1973'
+  ) %>%
+# Change Labels
+  mutate(
+    feature = case_when(
+      feature == 'mirmode' ~ 'Relative Mode',
+      feature == 'bpm' ~ 'Tempo (BPM)',
+      feature == 'centroid' ~ 'Spectral Centroid (Hz)',
+      feature == 'onsets' ~ 'Number of Onsets'
+    ),
+    feature = as.factor(feature),
+    feature = fct_relevel(
+      feature,
+      'Relative Mode',
+      'Number of Onsets',
+      'Spectral Centroid (Hz)',
+      'Tempo (BPM)'
+    ),
+    tool = case_when(
+      tool == 'essentia' ~ 'Essentia',
+      tool == 'MIRtoolbox' ~ 'MIRtoolbox',
+      tool == 'librosa' ~ 'Librosa'),
+  ) %>%
+filter(
+  feature != 'Spectral Centroid (Hz)'
+) %>%
+left_join(
+  .,
+  sdc,
+  by = join_by(pieceID)
+) %>%
+mutate(
+    error = case_when(
+        feature == 'Tempo (BPM)' ~ (tempo - val) ^ 2,                          
+        feature == 'Relative Mode' ~ (midimode - val) ^ 2,                          
+        feature == 'Number of Onsets' ~ (attacks - val) ^ 2
+    )
+) %>%
+group_by(
+  algo,
+  tool,
+  feature) %>%
+summarise(
+    mse = round(
+        mean(
+            error,
+            na.rm = TRUE
+        ),
+        3
+    )
+) %>%
+ungroup() %>%
+arrange(
+    feature,
+    tool,
+    mse
+) %>%
+rename(
+    "Tool" = tool,
+    "Algorithm" = algo,
+    "MSE" = mse
+)
+
+selection %>%
+filter(
+    feature == 'Relative Mode',
+    Tool != 'MIRtoolbox'
+) %>%
+select(c(
+    Tool,
+    Algorithm,
+    MSE
+)) %>%
+kable()# %>%
+#pack_rows("Essentia", 1, 2) %>%
+#pack_rows("Librosa", 3, 6)
+
+selection %>%
+filter(feature == 'Number of Onsets',
+       Tool != 'librosa',
+       Tool != 'MIRtoolbox') %>%
+select(c(Tool, Algorithm, MSE)) %>%
+kable()# %>%
+#pack_rows("Essentia", 1, 6)
+
+selection %>%
+filter(feature == 'Tempo (BPM)') %>%
+select(c(Tool, Algorithm, MSE)) %>%
+kable()
+```
+
+## Version Variability Ratio
+
+To facilitate comparison between features with dissimilar numeric scales, we propose a metric of relative variability. We compare the variability (here represented by the standard deviation) of all versions of one prelude (for instance, the C Major prelude) to the standard deviation of all versions of all 24 preludes. Values approaching zero would indicate little variability between versions of a piece, while values of 1 would indicate that variability between pieces is similar to that across the entire corpus. Conceptually, invariant features should have smaller variability ratios than variant features. @fig-schematic outlines the process used to calculate the version variability ratio for a single prelude/tool/feature combination. We extend this process to all 24 pieces, 3 tools, and 4 features.
+
+```{r}
+#| label: fig-schematic
+#| fig-cap: "A schematic representation of the version variability ratio."
+knitr::include_graphics("img/schematic2.png")
+```
+
+## Questions
+
+To demonstrate possible applications of this method, we identify three evaluation questions for this corpus and feature set. First, how do different implementations of the same feature differ in their consistency? For instance, is any implementation of an invariant feature less consistent than another? Second, are these features consistent with our variant/invariant classifications? That is, are the variant features less consistent across versions than the invariant features? Finally, do mediating effects such as the instrument of performance or nominal mode (the mode defined by the composer in a title or key signature, importantly distinct from the extracted mode or perceived mode) influence how consistently extracted a given feature is across versions?

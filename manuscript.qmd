@@ -1,0 +1,188 @@
+---
+title: "Musical Feature Evaluation with Versions"
+author: Konrad Swierczek, Michael Schutz
+date: "`r format(Sys.time(), '%d/%m/%y')`"
+format: 
+    apaquarto-docx: default
+    pdf: default
+tbl-cap-location: bottom
+bibliography: references.bib
+#csl: https://www.zotero.org/styles/apa-single-spaced
+nocite: |
+  @bach_bach_1963, @bach_bach_1964, @bach_bach_1973, @bach_bach_1973-1
+  @bach_bach_1987, @bach_bach_1989, @bach_bach_1993, @bach_bach_1995,
+  @bach_bach_1999, @bach_bach_2001, @bach_bach_2006, @bach_bach_2006-1,
+  @bach_bach_2007, @bach_js_1992, @bach_well-tempered_1963, @bach_well_1994,
+  @bach_well-tempered_2006, @bach_well-tempered_2015, @bach_well_1992
+---
+
+```{r r_setup, echo = FALSE, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(reticulate)
+library(gridExtra)
+library(kableExtra)
+library(grid)
+library(knitr)
+library(rstatix)
+library(ggpubr)
+library(ggpattern)
+library(ggh4x)
+library(boot)
+set.seed(1618)
+source("src/discrete-histogram.R")
+source("src/pretty-emotional.R")
+source("src/simulation-tests.R")
+source("src/relative-variability.R")
+source("src/style.R")
+opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+```{python, eval = FALSE}
+import analysis
+```
+
+```{r data}
+sdc <- read_csv('data/sdc.csv') %>%
+mutate(desc = file) %>%
+separate_wider_delim(desc, delim = "_",
+                     names = c('composer', 'set', 'performer', 'chroma',
+                               'mode', 'albumID')) %>%
+mutate(pieceID = paste(chroma, mode, sep = "_"))
+
+#write_csv(read_csv("data/mode-og.csv"), 'data/_mode.csv')
+
+metadata <- read_csv('data/metadata.csv')
+
+dfs <- list()
+ind = 1
+for (file in list.files('data', pattern = "_")) {
+dfs[[ind]] <- test <- read_csv(paste("data/", file, sep = "")) %>%
+select(-1) %>%
+gather(feature_algo, val, -filename) %>%
+separate_wider_delim(feature_algo, delim = "_", names = c("feature", "algo")) %>%
+separate_wider_delim(algo, delim = '-', names = c('tool', 'algo'))
+ind = ind + 1
+}
+raw_data <- tibble()
+for (df in 1:4) {
+raw_data <- rbind(raw_data, dfs[[df]])
+}
+raw_data <- raw_data %>%
+mutate(desc = str_replace(basename(filename), '.wav', '')) %>%
+separate_wider_delim(desc, delim = "_", names = c('composer', 'set',
+                                                  'performer', 'chroma',
+                                                  'mode', 'albumID')) %>%
+mutate(pieceID = paste(chroma, mode, sep = "_"))
+
+raw_data <- left_join(raw_data, metadata %>% select(-label), by = "albumID") %>%
+left_join(., read_csv('data/pieceID.csv') %>%
+mutate(key = paste(keyName, mode, sep = " "),
+       mode = case_when(mode == "Major" ~ "Major",
+                        mode == "Minor" ~ "minor"),
+       pieceID = paste(chroma, mode, sep = "_")) %>%
+       select(c(pieceID, key)), by = "pieceID")
+translator <- read_csv("data/translator.csv") %>%
+filter(setCode == "bach-1") %>%
+select(c(keyName, keyChroma)) %>%
+distinct()
+```
+
+```{r}
+# Remove 
+data <- raw_data %>%
+# Remove deadpan versions.
+  filter(
+    `albumID` != 'flatMIDI',
+    `albumID` != 'bachAshk2006Deadpan',
+    `albumID` != 'bachDemaria2015Deadpan',
+    `albumID` != 'bachNewman1973'
+  ) %>%
+# Use lowest MSE algorithm from each feature/tool
+  filter(
+    feature == 'bpm' & algo %in% c(
+      'percival',
+      'onsets',
+      'metre'
+    ) |
+    feature == 'mirmode' & algo %in% c(
+      'cens',
+      'std'
+    ) |
+    feature == 'mirmode' & algo == 'cqt' & tool == 'essentia' |
+    feature == 'onsets' & algo %in% c(
+      'std',
+      'rms'
+    ) |
+    feature == 'centroid'
+  ) %>%
+# Change Labels
+  mutate(
+    vary = case_when(
+      feature == 'bpm' ~ 'yes', 
+      feature == 'centroid' ~ 'yes', 
+      feature == 'onsets' ~ 'no', 
+      feature == 'mirmode' ~ 'no'
+    ),
+    feature = case_when(
+      feature == 'mirmode' ~ 'Relative Mode',
+      feature == 'bpm' ~ 'Tempo (BPM)',
+      feature == 'centroid' ~ 'Spectral Centroid (Hz)',
+      feature == 'onsets' ~ 'Number of Onsets'
+    ),
+    feature = as.factor(feature),
+    feature = fct_relevel(
+      feature,
+      'Relative Mode',
+      'Number of Onsets',
+      'Spectral Centroid (Hz)',
+      'Tempo (BPM)'
+    ),
+    tool = case_when(
+      tool == 'essentia' ~ 'Essentia',
+      tool == 'MIRtoolbox' ~ 'MIRtoolbox',
+      tool == 'librosa' ~ 'Librosa'),
+    pieceID = paste0(
+      ifelse(
+        mode == "Major",
+        "M",
+        "m"
+      ),
+      chroma
+    )
+  )
+```
+
+# Introduction {#sec-introduction}
+
+{{< include _intro.qmd >}}
+
+{{< pagebreak >}}
+
+# Methods {#sec-methods}
+
+{{< include _methods.qmd >}}
+
+{{< pagebreak >}}
+
+# Results {#sec-results}
+
+{{< include _results.qmd >}}
+
+{{< pagebreak >}}
+
+# Discussion {#sec-discussion}
+
+{{< include _discussion.qmd >}}
+
+{{< pagebreak >}}
+
+# References {#sec-references}
+
+::: {#refs}
+:::
+
+{{< pagebreak >}}
+
+# Supplementary Materials {#sec-suppmat}
+
+{{< include _supplementary.qmd >}}
